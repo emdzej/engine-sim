@@ -5,6 +5,7 @@
 #include <cassert>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 
 #undef min

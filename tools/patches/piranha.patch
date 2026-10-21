@@ -16,6 +16,38 @@ index 92eeaa70..66ec378a 100644
  include_directories(include)
  
  set(Boost_USE_STATIC_LIBS ON)
+diff --git a/include/exceptions.h b/include/exceptions.h
+index 44752f24..9b7016aa 100644
+--- a/include/exceptions.h
++++ b/include/exceptions.h
+@@ -2,6 +2,14 @@
+ #define PIRANHA_EXCEPTIONS_H
+ 
+ #include <exception>
++#include <cstdlib>
++
++// Nothing catches these, so without exceptions (-fno-exceptions) they abort
++#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
++#define PIRANHA_THROW(e) throw e
++#else
++#define PIRANHA_THROW(e) std::abort()
++#endif
+ 
+ namespace piranha {
+ 
+diff --git a/include/ir_literal_node.h b/include/ir_literal_node.h
+index df5cbe4a..c13949e3 100644
+--- a/include/ir_literal_node.h
++++ b/include/ir_literal_node.h
+@@ -28,7 +28,7 @@ namespace piranha {
+             Node *newNode = IrNode::_generateNode(context, program, container);
+             
+             if (!newNode->isLiteral()) {
+-                throw InvalidLiteralType();
++                PIRANHA_THROW(InvalidLiteralType());
+             }
+             else {
+                 LiteralNode<NativeType> *literalNode =
 diff --git a/include/memory_management.h b/include/memory_management.h
 index 75500615..bc1a74b1 100644
 --- a/include/memory_management.h
@@ -40,11 +72,257 @@ index 75500615..bc1a74b1 100644
  
  } /* namespace piranha */
  
+diff --git a/include/path.h b/include/path.h
+index eed8798e..170b1ca7 100644
+--- a/include/path.h
++++ b/include/path.h
+@@ -3,17 +3,28 @@
+ 
+ #include <string>
+ 
++#ifndef PIRANHA_NO_BOOST
+ // Forward Boost declaration
+ namespace boost {
+     namespace filesystem {
+         class path;
+     } /* namespace filesystem */
+ } /* namespace boost */
++#endif /* PIRANHA_NO_BOOST */
+ 
+ namespace piranha {
+ 
++    // Reads a whole source file (contents may be null to only test that it
++    // exists). The default reads from disk; embedders without a filesystem
++    // (wasm guests) install their own.
++    typedef bool (*FileReader)(const std::string &path, std::string *contents);
++    void setFileReader(FileReader reader);
++    bool readFile(const std::string &path, std::string *contents);
++
+     class Path {        
++#ifndef PIRANHA_NO_BOOST
+     protected: Path(const boost::filesystem::path &path);
++#endif /* PIRANHA_NO_BOOST */
+     public:
+         Path(const std::string &path);
+         Path(const char *path);
+@@ -37,11 +48,17 @@ namespace piranha {
+         bool isAbsolute() const;
+         bool exists() const;
+ 
++#ifdef PIRANHA_NO_BOOST
++    protected:
++        // Lexically normalized, '/'-separated
++        std::string m_path;
++#else
+     protected:
+         boost::filesystem::path *m_path;
+ 
+     protected:
+         const boost::filesystem::path &getBoostPath() const { return *m_path; }
++#endif /* PIRANHA_NO_BOOST */
+     };
+ 
+ } /* namespace piranha */
+diff --git a/src/ir_compilation_unit.cpp b/src/ir_compilation_unit.cpp
+index 4caea6ac..31ea2673 100644
+--- a/src/ir_compilation_unit.cpp
++++ b/src/ir_compilation_unit.cpp
+@@ -37,11 +37,12 @@ piranha::IrCompilationUnit::ParseResult piranha::IrCompilationUnit::parseFile(
+ {
+     m_path = filename;
+     
+-    std::ifstream inFile(filename.toString());
+-    if (!inFile.good()) {
++    std::string contents;
++    if (!readFile(filename.toString(), &contents)) {
+         return ParseResult::IoError;
+     }
+ 
++    std::istringstream inFile(contents);
+     return parseHelper(inFile);
+ }
+ 
+@@ -144,20 +145,10 @@ piranha::IrCompilationUnit::ParseResult piranha::IrCompilationUnit::parseHelper(
+     std::istream &stream, IrCompilationUnit *topLevel) 
+ {
+     if (m_scanner != nullptr) delete FTRACK(m_scanner);
+-    try {
+-        m_scanner = TRACK(new piranha::Scanner(&stream));
+-    }
+-    catch (std::bad_alloc) {
+-        return ParseResult::Fail;
+-    }
++    m_scanner = TRACK(new piranha::Scanner(&stream));
+ 
+     if (m_parser != nullptr) delete FTRACK(m_parser);
+-    try {
+-        m_parser = TRACK(new piranha::Parser(*m_scanner, *this));
+-    }
+-    catch (std::bad_alloc) {
+-        return ParseResult::Fail;
+-    }
++    m_parser = TRACK(new piranha::Parser(*m_scanner, *this));
+ 
+     if (m_parser->parse() != 0) {
+         return ParseResult::Fail;
+diff --git a/src/ir_node.cpp b/src/ir_node.cpp
+index 14ac507e..39502175 100644
+--- a/src/ir_node.cpp
++++ b/src/ir_node.cpp
+@@ -503,7 +503,7 @@ piranha::Node *piranha::IrNode::_generateNode(IrContextTree *context, NodeProgra
+             Node *node = attributeDefinition->generateNode(newContext, program, newContainer);
+ 
+             if (node == nullptr && output == nullptr) {
+-                throw EmptyPort();
++                PIRANHA_THROW(EmptyPort());
+             }
+ 
+             if (node != nullptr && !node->isVirtual()) {
+@@ -547,7 +547,7 @@ piranha::Node *piranha::IrNode::_generateNode(IrContextTree *context, NodeProgra
+             Node *node = attributeDefinition->generateNode(newContext, program, newContainer);
+ 
+             if (node == nullptr && output == nullptr) {
+-                throw EmptyPort();
++                PIRANHA_THROW(EmptyPort());
+             }
+ 
+             if (!m_definition->isBuiltin()) {
+diff --git a/src/node_allocator.cpp b/src/node_allocator.cpp
+index 09c60feb..7979a778 100644
+--- a/src/node_allocator.cpp
++++ b/src/node_allocator.cpp
+@@ -1,5 +1,7 @@
+ #include "../include/node_allocator.h"
+ 
++#include <cstdlib>
++
+ piranha::NodeAllocator::NodeAllocator() {
+     /* void */
+ }
+diff --git a/src/node_graph.cpp b/src/node_graph.cpp
+index 55baba4c..53ffc613 100644
+--- a/src/node_graph.cpp
++++ b/src/node_graph.cpp
+@@ -105,7 +105,7 @@ void piranha::NodeGraph::generateConnections() {
+             };
+ 
+             if (input == nullptr && nodeInput == nullptr) {
+-                throw EmptyPort();
++                PIRANHA_THROW(EmptyPort());
+             }
+ 
+             for (Node *node : toCheck) {
 diff --git a/src/path.cpp b/src/path.cpp
-index 6e711184..68867fed 100644
+index 6e711184..6f5a8c1f 100644
 --- a/src/path.cpp
 +++ b/src/path.cpp
-@@ -73,7 +73,7 @@ std::string piranha::Path::getStem() const {
+@@ -2,6 +2,105 @@
+ 
+ #include "../include/memory_tracker.h"
+ 
++#include <fstream>
++#include <sstream>
++#include <vector>
++
++namespace {
++    bool readFromDisk(const std::string &path, std::string *contents) {
++        std::ifstream file(path, std::ios::binary);
++        if (!file.good()) return false;
++        if (contents != nullptr) {
++            std::ostringstream ss;
++            ss << file.rdbuf();
++            *contents = ss.str();
++        }
++        return true;
++    }
++
++    piranha::FileReader s_fileReader = readFromDisk;
++}
++
++void piranha::setFileReader(FileReader reader) {
++    s_fileReader = (reader != nullptr) ? reader : readFromDisk;
++}
++
++bool piranha::readFile(const std::string &path, std::string *contents) {
++    return s_fileReader(path, contents);
++}
++
++#ifdef PIRANHA_NO_BOOST
++
++namespace {
++    // Collapses "." and "..", keeping leading ".." of relative paths
++    std::string normalize(const std::string &path) {
++        const bool absolute = !path.empty() && path[0] == '/';
++        std::vector<std::string> parts;
++        std::string part;
++        std::istringstream ss(path);
++        while (std::getline(ss, part, '/')) {
++            if (part.empty() || part == ".") continue;
++            if (part == ".." && !parts.empty() && parts.back() != "..") parts.pop_back();
++            else if (part == ".." && absolute) continue;
++            else parts.push_back(part);
++        }
++
++        std::string result = absolute ? "/" : "";
++        for (size_t i = 0; i < parts.size(); ++i) {
++            if (i > 0) result += "/";
++            result += parts[i];
++        }
++        return result;
++    }
++
++    std::string filename(const std::string &path) {
++        const size_t slash = path.rfind('/');
++        return (slash == std::string::npos) ? path : path.substr(slash + 1);
++    }
++}
++
++piranha::Path::Path(const std::string &path) { setPath(path); }
++piranha::Path::Path(const char *path) { setPath(std::string(path)); }
++piranha::Path::Path(const Path &path) : m_path(path.m_path) { /* void */ }
++piranha::Path::Path() { /* void */ }
++piranha::Path::~Path() { /* void */ }
++
++std::string piranha::Path::toString() const { return m_path; }
++void piranha::Path::setPath(const std::string &path) { m_path = normalize(path); }
++bool piranha::Path::operator==(const Path &path) const { return m_path == path.m_path; }
++
++piranha::Path piranha::Path::append(const Path &path) const {
++    if (path.isAbsolute() || m_path.empty()) return path;
++    return Path(m_path + "/" + path.m_path);
++}
++
++void piranha::Path::getParentPath(Path *path) const {
++    const size_t slash = m_path.rfind('/');
++    path->m_path = (slash == std::string::npos) ? "" : m_path.substr(0, slash == 0 ? 1 : slash);
++}
++
++const piranha::Path &piranha::Path::operator=(const Path &b) {
++    m_path = b.m_path;
++    return *this;
++}
++
++std::string piranha::Path::getExtension() const {
++    const std::string name = filename(m_path);
++    const size_t dot = name.rfind('.');
++    return (dot == std::string::npos || dot == 0) ? "" : name.substr(dot);
++}
++
++std::string piranha::Path::getStem() const {
++    const std::string name = filename(m_path);
++    const size_t dot = name.rfind('.');
++    return (dot == std::string::npos || dot == 0) ? name : name.substr(0, dot);
++}
++
++bool piranha::Path::isAbsolute() const { return !m_path.empty() && m_path[0] == '/'; }
++bool piranha::Path::exists() const { return readFile(m_path, nullptr); }
++
++#else
++
+ #include <boost/filesystem.hpp>
+ 
+ piranha::Path::Path(const std::string &path) {
+@@ -73,9 +172,11 @@ std::string piranha::Path::getStem() const {
  }
  
  bool piranha::Path::isAbsolute() const {
@@ -53,6 +331,10 @@ index 6e711184..68867fed 100644
  }
  
  bool piranha::Path::exists() const {
+     return boost::filesystem::exists(*m_path);
+ }
++
++#endif /* PIRANHA_NO_BOOST */
 diff --git a/src/standard_allocator.cpp b/src/standard_allocator.cpp
 index ca8841af..59c63e84 100644
 --- a/src/standard_allocator.cpp

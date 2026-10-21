@@ -69,6 +69,17 @@ build-headless/engine-sim-cli --script tools/engine-sounds/r4.mr --kind r4 --out
 
 Run it from the repository root (the script compiler looks for `es/` relative to the working directory). Each take is written as `<kind>_<rpm>_<on|off>.wav`, plus `<kind>_takes.csv` with the measured rpm and dyno torque. Portability fixes for the `piranha` and `simple-2d-constraint-solver` submodules live in `tools/patches/` and are applied by the build script.
 
+### WebAssembly ([gasm](https://gasm.emdzej.pl) guest)
+`tools/gasm/` builds `engine-sim.wasm`, the simulator and synthesizer as a gasm game (no UI yet: an rpm/throttle bar). It needs a gasm checkout (for the C SDK and its wasi-sdk) next to this repository, or its path as the first argument.
+
+```
+tools/gasm/build.sh ../gasm
+gasm-run build-gasm/engine-sim.wasm --asset-dir es=es --asset-dir assets=assets --asset-dir tools=tools \
+    --param script=tools/engine-sounds/r4.mr          # arrow up = throttle, X (pad A) = starter
+```
+
+`--param mode=bench --param rpm=4800` holds the engine on the dyno at wide-open throttle, for timing runs (`--headless 600 --no-hash`); `--param capture=<frames>` stores the first frames of audio as `capture.wav` in gasm storage. The wasm build uses `ATG_ENGINE_SIM_FAST_CONVOLUTION` (a vectorizable impulse-response sum) and Piranha's `PIRANHA_NO_BOOST` mode (scripts read from gasm assets).
+
 
 ### Step 1 - Clone the repository
 ```git clone --recurse-submodules https://github.com/ange-yaghi/engine-sim```

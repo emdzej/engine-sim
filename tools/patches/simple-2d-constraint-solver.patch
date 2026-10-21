@@ -18,3 +18,15 @@ index c8875c6..cb0442d 100644
      template <int T_Stride = 3, int T_Entries = 2>
      class SparseMatrix {
          public:
+diff --git a/src/matrix.cpp b/src/matrix.cpp
+index 27de101..b5758a1 100644
+--- a/src/matrix.cpp
++++ b/src/matrix.cpp
+@@ -2,6 +2,7 @@
+ 
+ #include <algorithm>
+ #include <assert.h>
++#include <cmath>
+ 
+ atg_scs::Matrix::Matrix() {
+     m_matrix = nullptr;

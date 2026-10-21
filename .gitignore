@@ -14,3 +14,4 @@ compile_commands.json
 # Headless build and renderer logs
 build-headless/
 error_log.log
+build-gasm/

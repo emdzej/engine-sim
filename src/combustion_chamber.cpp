@@ -6,6 +6,8 @@
 #include "../include/connecting_rod.h"
 #include "../include/utilities.h"
 #include "../include/exhaust_system.h"
+
+#include <cstdlib>
 #include "../include/cylinder_bank.h"
 #include "../include/engine.h"
 
