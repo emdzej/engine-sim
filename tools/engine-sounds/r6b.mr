@@ -1,0 +1,39 @@
+import "engine_sim.mr"
+import "m52b28_fixed.mr"
+
+units units()
+impulse_response_library ir_lib()
+
+// m52b28_fixed.mr only defines the engine; the vehicle and transmission are
+// placeholders (the renderer runs in neutral with the dyno on the crank)
+public node main {
+    set_engine(
+        M52B28(
+            // r4's impulse response and HF gain, with less input jitter and air
+            // noise: the jitter adds a broadband hash on strong high-rpm pulses
+            impulse_response: ir_lib.mild_exhaust_0,
+            hf_gain: 0.002,
+            noise: 0.1,
+            jitter: 0.05
+        ))
+    set_vehicle(
+        vehicle(
+            mass: 1450 * units.kg,
+            drag_coefficient: 0.3,
+            cross_sectional_area: (70 * units.inch) * (55 * units.inch),
+            diff_ratio: 3.15,
+            tire_radius: 12 * units.inch,
+            rolling_resistance: 300 * units.N
+        ))
+    set_transmission(
+        transmission(
+            max_clutch_torque: 300 * units.lb_ft
+        )
+        .add_gear(4.2)
+        .add_gear(2.49)
+        .add_gear(1.66)
+        .add_gear(1.24)
+        .add_gear(1.0))
+}
+
+main()

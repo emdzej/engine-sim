@@ -13,6 +13,7 @@ IgnitionModule::IgnitionModule() {
     m_cylinderCount = 0;
     m_lastCrankshaftAngle = 0.0;
     m_enabled = false;
+    m_twoStroke = false;
     m_revLimitTimer = 0.0;
     m_revLimit = 0;
     m_limiterDuration = 0;
@@ -36,6 +37,7 @@ void IgnitionModule::initialize(const Parameters &params) {
     m_timingCurve = params.timingCurve;
     m_revLimit = params.revLimit;
     m_limiterDuration = params.limiterDuration;
+    m_twoStroke = params.twoStroke;
 }
 
 void IgnitionModule::setFiringOrder(int cylinderIndex, double angle) {
@@ -57,8 +59,11 @@ void IgnitionModule::update(double dt) {
         const double fourPi = 4 * constants::pi;
         const double advance = getTimingAdvance();
 
-        for (int i = 0; i < m_cylinderCount; ++i) {
-            double adjustedAngle = positiveMod(m_plugs[i].angle - advance, fourPi);
+        const int sparksPerCycle = m_twoStroke ? 2 : 1;
+        for (int j = 0; j < m_cylinderCount * sparksPerCycle; ++j) {
+            const int i = j % m_cylinderCount;
+            const double offset = (j / m_cylinderCount) * 2 * constants::pi;
+            double adjustedAngle = positiveMod(m_plugs[i].angle + offset - advance, fourPi);
             const double r0 = m_lastCrankshaftAngle;
             double r1 = cycleAngle;
 

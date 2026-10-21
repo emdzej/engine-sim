@@ -1,12 +1,20 @@
 import "engine_sim.mr"
-import "../../assets/engines/bmw/M52B28.mr"
+import "m52b28_fixed.mr"
 
 units units()
+impulse_response_library ir_lib()
 
-// M52B28.mr only defines the engine; the vehicle and transmission are
+// m52b28_fixed.mr only defines the engine; the vehicle and transmission are
 // placeholders (the renderer runs in neutral with the dyno on the crank)
 public node main {
-    set_engine(M52B28())
+    set_engine(
+        M52B28(
+            // r4's impulse response and synthesizer settings (the M52 file sets none)
+            impulse_response: ir_lib.mild_exhaust_0,
+            hf_gain: 0.002,
+            noise: 0.253,
+            jitter: 0.195
+        ))
     set_vehicle(
         vehicle(
             mass: 1450 * units.kg,
