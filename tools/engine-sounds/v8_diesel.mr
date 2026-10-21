@@ -1,0 +1,302 @@
+// v8_diesel: pickup V8 diesel, approximated from assets/engines/chevrolet/chev_truck_454.mr
+// (7.4 L, about the displacement of the 7.3 L Power Stroke). Engine Sim only does
+// spark ignition of a premixed charge, so this is still a petrol combustion model:
+//   - compression raised to about 16:1 (62 cc chambers; head copied from heads.mr)
+//   - redline 3300 rpm, heavier flywheel, gentler spark advance
+//   - one exhaust system for both banks (turbo and single pipe), equal primaries,
+//     equal sound attenuation and equal blowby instead of the 454's per-cylinder
+//     variation (which modulated the sound once per cycle)
+//   - r4's impulse response and synthesizer settings
+// Off-load takes are rendered with --fuel-cut (throttle open, no combustion), as a
+// diesel coasts. No turbo, injection clatter or compression ignition are modelled.
+
+import "engine_sim.mr"
+
+units units()
+constants constants()
+impulse_response_library ir_lib()
+
+private node wires {
+    output wire1: ignition_wire();
+    output wire2: ignition_wire();
+    output wire3: ignition_wire();
+    output wire4: ignition_wire();
+    output wire5: ignition_wire();
+    output wire6: ignition_wire();
+    output wire7: ignition_wire();
+    output wire8: ignition_wire();
+}
+
+public node v8_diesel {
+    alias output __out: engine;
+
+    wires wires()
+
+    engine engine(
+        name: "V8 diesel approx. (from Chev. 454)",
+        starter_torque: 300 * units.lb_ft,
+        redline: 3300 * units.rpm,
+        hf_gain: 0.002,
+        noise: 0.253,
+        jitter: 0.195,
+        fuel: fuel(
+            max_turbulence_effect: 3.0,
+            burning_efficiency_randomness: 0.5,
+            max_burning_efficiency: 0.85),
+        throttle_gamma: 1.5
+    )
+
+    crankshaft c0(
+        throw: 2.0 * units.inch,
+        flywheel_mass: 29 * 3 * units.lb,
+        mass: 75 * units.lb,
+        friction_torque: 10.0 * units.lb_ft,
+        moment_of_inertia: 0.22986844776863666 * 2,
+        position_x: 0.0,
+        position_y: 0.0,
+        tdc: constants.pi / 4
+    )
+
+    rod_journal rj0(angle: 0.0)
+    rod_journal rj1(angle: -constants.pi / 2)
+    rod_journal rj2(angle: -3.0 * constants.pi / 2)
+    rod_journal rj3(angle: constants.pi)
+
+    c0
+        .add_rod_journal(rj0)
+        .add_rod_journal(rj1)
+        .add_rod_journal(rj2)
+        .add_rod_journal(rj3)
+
+    piston_parameters piston_params(
+        mass: 880 * units.g,
+        blowby: 0,
+        compression_height: 1.640 * units.inch,
+        wrist_pin_position: 0.0,
+        displacement: 0.0
+    )
+
+    connecting_rod_parameters cr_params(
+        mass: 785.0 * units.g,
+        moment_of_inertia: 0.0015884918028487504,
+        center_of_mass: 0.0,
+        length: 6.135 * units.inch
+    )
+
+    cylinder_bank_parameters bank_params(
+        bore: 4.25 * units.inch,
+        deck_height: 9.8 * units.inch
+    )
+
+    chevy_bbc_stock_intake intake(
+        carburetor_cfm: 650.0,
+        idle_flow_rate_cfm: 0.007,
+        idle_throttle_plate_position: 0.991
+    )
+
+    exhaust_system_parameters es_params(
+        outlet_flow_rate: k_carb(550.0),
+        primary_tube_length: 10.0 * units.inch,
+        primary_flow_rate: k_carb(100.0),
+        velocity_decay: 1.0, //0.5
+        length: 100.0 * units.inch
+    )
+
+    label distance(5.0 * units.inch)
+
+    exhaust_system exhaust0(
+        es_params,
+        length: 200.0 * units.inch,
+        audio_volume: 5.5,
+        impulse_response: ir_lib.mild_exhaust_0)
+
+    cylinder_bank b0(bank_params, angle: -45 * units.deg)
+    b0
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.4)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj0,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire1,
+            primary_length: distance * 2.5,
+            sound_attenuation: 1.0
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.4)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj1,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire3,
+            primary_length: distance * 2.5,
+            sound_attenuation: 1.0
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.4)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj2,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire5,
+            primary_length: distance * 2.5,
+            sound_attenuation: 1.0
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.4)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj3,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire7,
+            primary_length: distance * 2.5,
+            sound_attenuation: 1.0
+        )
+
+    cylinder_bank b1(bank_params, angle: 45.0 * units.deg)
+    b1
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.4)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj0,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire2,
+            primary_length: distance * 2.5,
+            sound_attenuation: 1.0
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.4)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj1,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire4,
+            primary_length: distance * 2.5,
+            sound_attenuation: 1.0
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.4)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj2,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire6,
+            primary_length: distance * 2.5,
+            sound_attenuation: 1.0
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.4)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj3,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire8,
+            primary_length: distance * 2.5,
+            sound_attenuation: 1.0
+        )
+
+    engine
+        .add_cylinder_bank(b0)
+        .add_cylinder_bank(b1)
+
+    engine.add_crankshaft(c0)
+
+    chevy_454_stock_camshaft camshaft()
+
+    b0.set_cylinder_head (
+        diesel_v8_head(
+            chamber_volume: 62.0 * units.cc,
+            intake_camshaft: camshaft.intake_cam_0,
+            exhaust_camshaft: camshaft.exhaust_cam_0
+        )
+    )
+    b1.set_cylinder_head (
+        diesel_v8_head(
+            chamber_volume: 62.0 * units.cc,
+            intake_camshaft: camshaft.intake_cam_1,
+            exhaust_camshaft: camshaft.exhaust_cam_1,
+            flip_display: true
+        )
+    )
+
+    function timing_curve(1000 * units.rpm)
+    timing_curve
+        .add_sample(0000 * units.rpm, 8 * units.deg)
+        .add_sample(1000 * units.rpm, 10 * units.deg)
+        .add_sample(2000 * units.rpm, 14 * units.deg)
+        .add_sample(3000 * units.rpm, 18 * units.deg)
+        .add_sample(4000 * units.rpm, 18 * units.deg)
+
+    engine.add_ignition_module(
+        chevy_bbc_distributor(
+            wires: wires,
+            timing_curve: timing_curve,
+            rev_limit: 3600 * units.rpm
+        )
+    )
+}
+
+private node diesel_v8_head {
+    input chamber_volume: 118.0 * units.cc;
+    input intake_camshaft;
+    input exhaust_camshaft;
+    input flip_display: false;
+    alias output __out: head;
+
+    function intake_flow(50 * units.thou)
+    intake_flow
+        .add_flow_sample(0, 0)
+        .add_flow_sample(50, 25)
+        .add_flow_sample(100, 75)
+        .add_flow_sample(150, 100)
+        .add_flow_sample(200, 130)
+        .add_flow_sample(250, 180)
+        .add_flow_sample(300, 190)
+        .add_flow_sample(350, 220)
+        .add_flow_sample(400, 240)
+        .add_flow_sample(450, 250)
+        .add_flow_sample(500, 260)
+        .add_flow_sample(550, 260)
+        .add_flow_sample(600, 260)
+        .add_flow_sample(650, 255)
+        .add_flow_sample(700, 250)
+
+    function exhaust_flow(50 * units.thou)
+    exhaust_flow
+        .add_flow_sample(0, 0)
+        .add_flow_sample(50, 25)
+        .add_flow_sample(100, 50)
+        .add_flow_sample(150, 75)
+        .add_flow_sample(200, 100)
+        .add_flow_sample(250, 125)
+        .add_flow_sample(300, 160)
+        .add_flow_sample(350, 175)
+        .add_flow_sample(400, 180)
+        .add_flow_sample(450, 190)
+        .add_flow_sample(500, 200)
+        .add_flow_sample(550, 205)
+        .add_flow_sample(600, 210)
+        .add_flow_sample(650, 210)
+        .add_flow_sample(700, 210)
+
+    cylinder_head head(
+        chamber_volume: chamber_volume,
+        intake_runner_volume: 189.0 * units.cc,
+        intake_runner_cross_section_area: 37.8 * units.cm2,
+
+        intake_port_flow: intake_flow,
+        exhaust_port_flow: exhaust_flow,
+        intake_camshaft: intake_camshaft,
+        exhaust_camshaft: exhaust_camshaft,
+        flip_display: flip_display
+    )
+}
+
+public node main {
+    set_engine(v8_diesel())
+    set_vehicle(vehicle(mass: 3000 * units.kg, diff_ratio: 3.73, tire_radius: 16 * units.inch))
+    set_transmission(transmission(max_clutch_torque: 800 * units.lb_ft).add_gear(3.0).add_gear(1.0))
+}
+
+main()

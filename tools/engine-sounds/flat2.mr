@@ -1,0 +1,200 @@
+// flat2: dirt bike flat-twin, a four-stroke boxer sized like the BMW R80 G/S
+// (2 x 399 cc, 84.8 x 70.6 mm, ~8.2:1). Engine Sim has no flat-twin config; this
+// is written for these renders, following the boxer geometry of
+// assets/engines/atg-video-2/01_subaru_ej25_eh.mr (banks at +/-90 degrees, crank
+// pins 180 degrees apart, even firing every 360 degrees) and the single-cylinder
+// parts of assets/engines/atg-video-1/01_honda_trx520.mr. Both headers feed one
+// exhaust system with r4's impulse response and synthesizer settings.
+
+import "engine_sim.mr"
+
+units units()
+constants constants()
+impulse_response_library ir_lib()
+label cycle(2 * 360 * units.deg)
+
+private node wires {
+    output wire1: ignition_wire();
+    output wire2: ignition_wire();
+}
+
+private node boxer_twin_cams {
+    input lobe_profile;
+    input intake_lobe_center: 110 * units.deg;
+    input exhaust_lobe_center: 110 * units.deg;
+    input base_radius: 0.6 * units.inch;
+
+    output intake_cam_0: _intake_cam_0;
+    output exhaust_cam_0: _exhaust_cam_0;
+    output intake_cam_1: _intake_cam_1;
+    output exhaust_cam_1: _exhaust_cam_1;
+
+    camshaft_parameters params(advance: 0, base_radius: base_radius)
+
+    camshaft _intake_cam_0(params, lobe_profile: lobe_profile)
+    camshaft _exhaust_cam_0(params, lobe_profile: lobe_profile)
+    camshaft _intake_cam_1(params, lobe_profile: lobe_profile)
+    camshaft _exhaust_cam_1(params, lobe_profile: lobe_profile)
+
+    label rot360(360 * units.deg)
+
+    // Cylinder 1 fires at 0, cylinder 2 at half a cycle (360 crank degrees)
+    _intake_cam_0.add_lobe(rot360 + intake_lobe_center)
+    _exhaust_cam_0.add_lobe(rot360 - exhaust_lobe_center)
+    _intake_cam_1.add_lobe(rot360 + intake_lobe_center + 0.5 * cycle)
+    _exhaust_cam_1.add_lobe(rot360 - exhaust_lobe_center + 0.5 * cycle)
+}
+
+public node boxer_twin_800 {
+    alias output __out: engine;
+
+    engine engine(
+        name: "Boxer twin 800 (R80 G/S-like)",
+        starter_torque: 40 * units.lb_ft,
+        starter_speed: 500 * units.rpm,
+        redline: 7500 * units.rpm,
+        fuel: fuel(max_burning_efficiency: 0.9),
+        hf_gain: 0.002,
+        noise: 0.253,
+        jitter: 0.195,
+        simulation_frequency: 20000
+    )
+
+    wires wires()
+
+    crankshaft c0(
+        throw: 70.6 * units.mm / 2,
+        flywheel_mass: 5 * units.kg,
+        mass: 6 * units.kg,
+        friction_torque: 4.0 * units.lb_ft,
+        moment_of_inertia: 0.22986844776863666 * 0.35,
+        position_x: 0.0,
+        position_y: 0.0,
+        tdc: 180 * units.deg
+    )
+
+    rod_journal rj0(angle: 0.0 * units.deg)
+    rod_journal rj1(angle: 180.0 * units.deg)
+    c0
+        .add_rod_journal(rj0)
+        .add_rod_journal(rj1)
+
+    piston_parameters piston_params(
+        mass: 400 * units.g,
+        compression_height: 1.0 * units.inch,
+        wrist_pin_position: 0.0,
+        displacement: 0.0
+    )
+
+    connecting_rod_parameters cr_params(
+        mass: 450.0 * units.g,
+        moment_of_inertia: 0.0015884918028487504,
+        center_of_mass: 0.0,
+        length: 135 * units.mm
+    )
+
+    cylinder_bank_parameters bank_params(
+        bore: 84.8 * units.mm,
+        deck_height: 70.6 * units.mm / 2 + 135 * units.mm + 1.0 * units.inch
+    )
+
+    intake intake(
+        plenum_volume: 1.5 * units.L,
+        plenum_cross_section_area: 12.0 * units.cm2,
+        intake_flow_rate: k_carb(250.0),
+        idle_flow_rate: k_carb(0.0),
+        idle_throttle_plate_position: 0.997,
+        velocity_decay: 0.5
+    )
+
+    exhaust_system_parameters es_params(
+        outlet_flow_rate: k_carb(500.0),
+        primary_tube_length: 30.0 * units.inch,
+        primary_flow_rate: k_carb(200.0),
+        velocity_decay: 0.5,
+        volume: 8.0 * units.L
+    )
+
+    exhaust_system exhaust0(
+        es_params,
+        audio_volume: 1.0,
+        impulse_response: ir_lib.mild_exhaust_0
+    )
+
+    cylinder_bank b0(bank_params, angle: 90 * units.deg)
+    cylinder_bank b1(bank_params, angle: -90 * units.deg)
+
+    b0.add_cylinder(
+        piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+        connecting_rod: connecting_rod(cr_params),
+        rod_journal: rj0,
+        intake: intake,
+        exhaust_system: exhaust0,
+        ignition_wire: wires.wire1
+    )
+    b1.add_cylinder(
+        piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+        connecting_rod: connecting_rod(cr_params),
+        rod_journal: rj1,
+        intake: intake,
+        exhaust_system: exhaust0,
+        ignition_wire: wires.wire2
+    )
+
+    engine
+        .add_cylinder_bank(b0)
+        .add_cylinder_bank(b1)
+    engine.add_crankshaft(c0)
+
+    boxer_twin_cams cams(
+        lobe_profile: harmonic_cam_lobe(
+            duration_at_50_thou: 236 * units.deg,
+            gamma: 1.0,
+            lift: 350 * units.thou,
+            steps: 100
+        )
+    )
+
+    b0.set_cylinder_head(
+        generic_small_engine_head(
+            chamber_volume: 55 * units.cc,
+            intake_camshaft: cams.intake_cam_0,
+            exhaust_camshaft: cams.exhaust_cam_0,
+            flow_attenuation: 2.0,
+            intake_runner_cross_section_area: 10.0 * units.cm2,
+            exhaust_runner_cross_section_area: 10.0 * units.cm2
+        )
+    )
+    b1.set_cylinder_head(
+        generic_small_engine_head(
+            chamber_volume: 55 * units.cc,
+            intake_camshaft: cams.intake_cam_1,
+            exhaust_camshaft: cams.exhaust_cam_1,
+            flow_attenuation: 2.0,
+            intake_runner_cross_section_area: 10.0 * units.cm2,
+            exhaust_runner_cross_section_area: 10.0 * units.cm2,
+            flip_display: true
+        )
+    )
+
+    function timing_curve(1000 * units.rpm)
+    timing_curve
+        .add_sample(0000 * units.rpm, 6 * units.deg)
+        .add_sample(1000 * units.rpm, 6 * units.deg)
+        .add_sample(3000 * units.rpm, 28 * units.deg)
+        .add_sample(6000 * units.rpm, 32 * units.deg)
+        .add_sample(8000 * units.rpm, 32 * units.deg)
+
+    engine.add_ignition_module(
+        ignition_module(timing_curve: timing_curve, rev_limit: 8000 * units.rpm)
+            .connect_wire(wires.wire1, (0.0 / 2.0) * cycle)
+            .connect_wire(wires.wire2, (1.0 / 2.0) * cycle))
+}
+
+public node main {
+    set_engine(boxer_twin_800())
+    set_vehicle(vehicle(mass: 250 * units.kg, diff_ratio: 3.36, tire_radius: 13 * units.inch))
+    set_transmission(transmission(max_clutch_torque: 100 * units.lb_ft).add_gear(1.0))
+}
+
+main()

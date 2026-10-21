@@ -1,133 +1,307 @@
-// single_2t: paramotor single-cylinder two-stroke (approximation)
-// Sized like a 185 cc paramotor engine (66 x 54 mm); structure adapted from
-// assets/engines/atg-video-1/01_honda_trx520.mr. See two_stroke.mr.
+// single_2t: paramotor single-cylinder two-stroke (185 cc, 66 x 54 mm), approximated.
+// Generated from assets/engines/atg-video-1/04_hayabusa.mr by gen_pulse_equivalent.py (see there for why).
 
 import "engine_sim.mr"
-import "two_stroke.mr"
 
 units units()
 constants constants()
 impulse_response_library ir_lib()
+label cycle(2 * 360 * units.deg)
 
 private node wires {
     output wire1: ignition_wire();
+    output wire2: ignition_wire();
+    output wire3: ignition_wire();
+    output wire4: ignition_wire();
 }
 
-public node paramotor_single_2t {
+private node hayabusa_head {
+    input intake_camshaft;
+    input exhaust_camshaft;
+    input chamber_volume: 19.2 * units.cc;
+    input intake_runner_volume: 149.6 * units.cc;
+    input intake_runner_cross_section_area: 10.0 * units.cm2 * 2.0;
+    input exhaust_runner_volume: 50.0 * units.cc;
+    input exhaust_runner_cross_section_area: 15.0 * units.cm2 * 2.0;
+
+    input flow_attenuation: 1.0;
+    input lift_scale: 1.0;
+    input flip_display: false;
+    alias output __out: head;
+
+    function intake_flow(50 * units.thou)
+    intake_flow
+        .add_flow_sample(0 * lift_scale, 0 * flow_attenuation)
+        .add_flow_sample(50 * lift_scale, 40 * flow_attenuation)
+        .add_flow_sample(100 * lift_scale, 80 * flow_attenuation)
+        .add_flow_sample(150 * lift_scale, 125 * flow_attenuation)
+        .add_flow_sample(200 * lift_scale, 160 * flow_attenuation)
+        .add_flow_sample(250 * lift_scale, 190 * flow_attenuation)
+        .add_flow_sample(300 * lift_scale, 210 * flow_attenuation)
+        .add_flow_sample(350 * lift_scale, 225 * flow_attenuation)
+        .add_flow_sample(400 * lift_scale, 230 * flow_attenuation)
+        .add_flow_sample(450 * lift_scale, 240 * flow_attenuation)
+
+    function exhaust_flow(50 * units.thou)
+    exhaust_flow
+        .add_flow_sample(0 * lift_scale, 0 * flow_attenuation)
+        .add_flow_sample(50 * lift_scale, 30 * flow_attenuation)
+        .add_flow_sample(100 * lift_scale, 70 * flow_attenuation)
+        .add_flow_sample(150 * lift_scale, 100 * flow_attenuation)
+        .add_flow_sample(200 * lift_scale, 125 * flow_attenuation)
+        .add_flow_sample(250 * lift_scale, 140 * flow_attenuation)
+        .add_flow_sample(300 * lift_scale, 150 * flow_attenuation)
+        .add_flow_sample(350 * lift_scale, 160 * flow_attenuation)
+        .add_flow_sample(400 * lift_scale, 165 * flow_attenuation)
+        .add_flow_sample(450 * lift_scale, 170 * flow_attenuation)
+
+    cylinder_head head(
+        chamber_volume: chamber_volume,
+        intake_runner_volume: intake_runner_volume,
+        intake_runner_cross_section_area: intake_runner_cross_section_area,
+        exhaust_runner_volume: exhaust_runner_volume,
+        exhaust_runner_cross_section_area: exhaust_runner_cross_section_area,
+
+        intake_port_flow: intake_flow,
+        exhaust_port_flow: exhaust_flow,
+        intake_camshaft: intake_camshaft,
+        exhaust_camshaft: exhaust_camshaft,
+        flip_display: flip_display
+    )
+}
+
+private node hayabusa_camshaft {
+    input lobe_profile;
+    input intake_lobe_profile: lobe_profile;
+    input exhaust_lobe_profile: lobe_profile;
+    input lobe_separation: 114 * units.deg;
+    input intake_lobe_center: lobe_separation;
+    input exhaust_lobe_center: lobe_separation;
+    input advance: 0 * units.deg; 
+    input base_radius: 0.75 * units.inch;
+
+    output intake_cam_0: _intake_cam_0;
+    output exhaust_cam_0: _exhaust_cam_0;
+
+    camshaft_parameters params (
+        advance: advance,
+        base_radius: base_radius
+    )
+
+    camshaft _intake_cam_0(params, lobe_profile: intake_lobe_profile)
+    camshaft _exhaust_cam_0(params, lobe_profile: exhaust_lobe_profile)
+
+    label rot180(180 * units.deg)
+    label rot360(360 * units.deg)
+
+    _exhaust_cam_0
+        .add_lobe(rot360 - exhaust_lobe_center + (0.0 / 4) * cycle)
+        .add_lobe(rot360 - exhaust_lobe_center + (2.0 / 4) * cycle)
+    _intake_cam_0
+        .add_lobe(rot360 + intake_lobe_center + (0.0 / 4) * cycle)
+        .add_lobe(rot360 + intake_lobe_center + (2.0 / 4) * cycle)
+}
+
+public node hayabusa_i4 {
     alias output __out: engine;
 
     engine engine(
-        name: "Paramotor single 2T (approx., 185 cc)",
-        starter_torque: 20 * units.lb_ft,
-        starter_speed: 800 * units.rpm,
+        name: "Paramotor 2T single, pulse-equivalent (from Hayabusa)",
+        starter_torque: 70 * units.lb_ft,
+        starter_speed: 500 * units.rpm,
         redline: 8500 * units.rpm,
-        fuel: fuel(max_burning_efficiency: 1.0),
-        hf_gain: 0.00121,
-        noise: 0.229,
-        jitter: 0.42,
-        simulation_frequency: 40000
+        fuel: fuel(
+            max_turbulence_effect: 5.5,
+            max_dilution_effect: 1000.0,
+            max_burning_efficiency: 1.0,
+            burning_efficiency_randomness: 0.0
+        ),
+        throttle_gamma: 2.0,
+        hf_gain: 0.002,
+        noise: 0.253,
+        jitter: 0.195,
+        simulation_frequency: 20000
     )
 
     wires wires()
 
+    label stroke(54 * units.mm)
+    label bore(66 * units.mm)
+    label rod_length(4.705 * units.inch)
+    label compression_height(1.0 * units.inch)
+
     crankshaft c0(
-        throw: 54 * units.mm / 2,
-        flywheel_mass: 1 * units.lb,
-        mass: 2 * units.lb,
+        throw: stroke / 2,
+        flywheel_mass: 6 * units.lb,
+        mass: 24.8 * units.lb,
         friction_torque: 1.0 * units.lb_ft,
-        moment_of_inertia: 0.22986844776863666 * 0.05,
+        moment_of_inertia: 0.22986844776863666 * 0.15,
         position_x: 0.0,
         position_y: 0.0,
-        tdc: constants.pi / 2
+        tdc: 90 * units.deg
     )
 
-    rod_journal rj0(angle: 0.0)
-    c0.add_rod_journal(rj0)
+    rod_journal rj0(angle: 0.0 * units.deg)
+    rod_journal rj1(angle: 180.0 * units.deg)
+    rod_journal rj2(angle: 180.0 * units.deg)
+    rod_journal rj3(angle: 0.0 * units.deg)
+    c0
+        .add_rod_journal(rj0)
+        .add_rod_journal(rj1)
+        .add_rod_journal(rj2)
+        .add_rod_journal(rj3)
 
     piston_parameters piston_params(
-        mass: 120 * units.g,
-        compression_height: 0.8 * units.inch,
+        mass: 303.5 * units.g,
+        compression_height: compression_height,
         wrist_pin_position: 0.0,
         displacement: 0.0
     )
 
     connecting_rod_parameters cr_params(
-        mass: 120.0 * units.g,
+        mass: 395.837 * units.g,
         moment_of_inertia: 0.0015884918028487504,
         center_of_mass: 0.0,
-        length: 105 * units.mm
-    )
-
-    cylinder_bank_parameters bank_params(
-        bore: 66 * units.mm,
-        deck_height: 54 * units.mm / 2 + 105 * units.mm + 0.8 * units.inch
+        length: rod_length
     )
 
     intake intake(
-        plenum_volume: 0.5 * units.L,
-        plenum_cross_section_area: 8.0 * units.cm2,
-        intake_flow_rate: k_carb(120.0),
+        plenum_volume: 4.5 * units.L,
+        plenum_cross_section_area: 10.0 * units.cm2,
+        intake_flow_rate: k_carb(800.0),
+        runner_flow_rate: k_carb(300.0),
+        runner_length: 10.0 * units.inch,
         idle_flow_rate: k_carb(0.0),
-        idle_throttle_plate_position: 0.99,
+        idle_throttle_plate_position: 0.999,
         velocity_decay: 0.5
     )
 
     exhaust_system_parameters es_params(
-        outlet_flow_rate: k_carb(300.0),
-        primary_tube_length: 14.0 * units.inch,
-        primary_flow_rate: k_carb(200.0),
-        velocity_decay: 0.5,
-        volume: 2.0 * units.L
+        outlet_flow_rate: k_carb(1000.0),
+        primary_tube_length: 40.0 * units.inch,
+        primary_flow_rate: k_carb(500.0),
+        velocity_decay: 1.0,
+        volume: 10.0 * units.L
     )
 
     exhaust_system exhaust0(
         es_params,
-        audio_volume: 1.0,
-        impulse_response: ir_lib.mild_exhaust_0_reverb
+        audio_volume: 0.5,
+        impulse_response: ir_lib.mild_exhaust_0
     )
 
-    cylinder_bank b0(bank_params, angle: 0 * units.deg)
-    b0.add_cylinder(
-        piston: piston(piston_params, blowby: k_28inH2O(0.1)),
-        connecting_rod: connecting_rod(cr_params),
-        rod_journal: rj0,
-        intake: intake,
-        exhaust_system: exhaust0,
-        ignition_wire: wires.wire1
+    cylinder_bank_parameters bank_params(
+        bore: bore,
+        deck_height: stroke / 2 + rod_length + compression_height
     )
 
-    engine.add_cylinder_bank(b0)
+    cylinder_bank b0(bank_params, angle: 0.0 * units.deg)
+    b0
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.001)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj0,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire1,
+            sound_attenuation: 1.0
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.002)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj3,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire4,
+            sound_attenuation: 1.0
+        )
+
+    engine
+        .add_cylinder_bank(b0)
+
     engine.add_crankshaft(c0)
 
-    two_stroke_port_cams cams()
+    harmonic_cam_lobe intake_lobe(
+        duration_at_50_thou: 240 * units.deg,
+        gamma: 1.2,
+        lift: 345 * units.thou,
+        steps: 100
+    )
 
-    b0.set_cylinder_head(
-        generic_small_engine_head(
-            chamber_volume: 20 * units.cc,
-            intake_camshaft: cams.intake_cam,
-            exhaust_camshaft: cams.exhaust_cam,
-            flow_attenuation: 2.0,
-            intake_runner_cross_section_area: 8.0 * units.cm2,
-            exhaust_runner_cross_section_area: 8.0 * units.cm2
+    harmonic_cam_lobe exhaust_lobe(
+        duration_at_50_thou: 220 * units.deg,
+        gamma: 1.2,
+        lift: 294 * units.thou,
+        steps: 100
+    )
+
+    hayabusa_camshaft camshaft(
+        lobe_profile: "N/A",
+        intake_lobe_profile: intake_lobe,
+        exhaust_lobe_profile: exhaust_lobe,
+        intake_lobe_center: 105 * units.deg,
+        exhaust_lobe_center: 100 * units.deg,
+        base_radius: 500 * units.thou
+    )
+
+    b0.set_cylinder_head (
+        hayabusa_head(
+            chamber_volume: 16 * units.cc,
+            intake_camshaft: camshaft.intake_cam_0,
+            exhaust_camshaft: camshaft.exhaust_cam_0
         )
     )
 
     function timing_curve(1000 * units.rpm)
     timing_curve
-        .add_sample(0000 * units.rpm, 12 * units.deg)
-        .add_sample(2000 * units.rpm, 16 * units.deg)
-        .add_sample(5000 * units.rpm, 22 * units.deg)
-        .add_sample(9000 * units.rpm, 22 * units.deg)
+        .add_sample(0000 * units.rpm, 25 * units.deg)
+        .add_sample(1000 * units.rpm, 25 * units.deg)
+        .add_sample(2000 * units.rpm, 30 * units.deg)
+        .add_sample(3000 * units.rpm, 40 * units.deg)
+        .add_sample(4000 * units.rpm, 40 * units.deg)
 
-    engine.add_ignition_module(
-        ignition_module(timing_curve: timing_curve, rev_limit: 9500 * units.rpm, two_stroke: true)
-            .connect_wire(wires.wire1, 0 * units.deg))
+    ignition_module ignition_module(
+        timing_curve: timing_curve,
+        rev_limit: 9000 * units.rpm,
+        limiter_duration: 0.05)
+    ignition_module
+            .connect_wire(wires.wire1, (0.0 / 4.0) * cycle)
+            .connect_wire(wires.wire4, (2.0 / 4.0) * cycle)
+
+    engine.add_ignition_module(ignition_module)
+}
+
+private node hayabusa_transmission {
+    alias output __out: transmission;
+
+    transmission transmission(
+        max_clutch_torque: 200 * units.lb_ft
+    )
+
+    transmission.add_gear(2.615)
+    transmission.add_gear(1.937)
+    transmission.add_gear(1.526)
+    transmission.add_gear(1.285)
+    transmission.add_gear(1.136)
+    transmission.add_gear(1.043)
+}
+
+private node hayabusa {
+    alias output __out:
+        vehicle(
+            mass: 563 * units.lb,
+            drag_coefficient: 0.1,
+            cross_sectional_area: (20 * units.inch) * (47 * units.inch),
+            diff_ratio: 2.353,
+            tire_radius: 8.5 * units.inch,
+            rolling_resistance: 100 * units.N
+        );
 }
 
 public node main {
-    set_engine(paramotor_single_2t())
-    set_vehicle(vehicle(mass: 100 * units.kg))
-    set_transmission(transmission(max_clutch_torque: 50 * units.lb_ft).add_gear(1.0))
+    set_engine(hayabusa_i4())
+    set_transmission(hayabusa_transmission())
+    set_vehicle(hayabusa())
 }
 
 main()

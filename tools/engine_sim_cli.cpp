@@ -41,6 +41,8 @@ struct Options {
     int simFrequency = 0;
     unsigned int seed = 1;
     bool probe = false;
+    bool dry = false;
+    bool fuelCut = false;
 };
 
 struct Take {
@@ -65,7 +67,9 @@ void usage() {
         "  --duration <s>       take length (default: 3.0)\n"
         "  --peak-db <dB>       peak level of the loudest take (default: -1.0)\n"
         "  --sim-freq <hz>      override the script's simulation frequency\n"
-        "  --seed <n>           noise seed (default: 1)\n";
+        "  --seed <n>           noise seed (default: 1)\n"
+        "  --dry                bypass the exhaust impulse response (convolution off)\n"
+        "  --fuel-cut           off-load takes with the throttle open and the ignition off\n";
 }
 
 bool parseArgs(int argc, char **argv, Options *opt) {
@@ -88,6 +92,8 @@ bool parseArgs(int argc, char **argv, Options *opt) {
         else if (a == "--sim-freq") opt->simFrequency = std::stoi(next());
         else if (a == "--seed") opt->seed = (unsigned int)std::stoul(next());
         else if (a == "--probe") opt->probe = true;
+        else if (a == "--dry") opt->dry = true;
+        else if (a == "--fuel-cut") opt->fuelCut = true;
         else if (a == "--rpms") {
             std::stringstream ss(next());
             std::string item;
@@ -192,6 +198,7 @@ public:
         audio.levelerMinGain = 1.0f;
         audio.levelerMaxGain = 1.0f;
         audio.volume = 1.0f;
+        if (opt.dry) audio.convolution = 0.0f;
         m_simulator->synthesizer().setAudioParameters(audio);
         m_simulator->synthesizer().m_levelingFilter.p_minLevel = 1.0f;
         m_simulator->synthesizer().m_levelingFilter.p_maxLevel = 1.0f;
@@ -369,7 +376,11 @@ int main(int argc, char **argv) {
 
     for (double rpm : rpms) {
         for (bool onLoad : { true, false }) {
-            const double speedControl = onLoad ? 1.0 : 0.0;
+            // Off load is a closed throttle by default; with --fuel-cut it is an
+            // open throttle with the ignition off (an unthrottled diesel on overrun)
+            const bool fuelCut = !onLoad && opt.fuelCut;
+            const double speedControl = (onLoad || fuelCut) ? 1.0 : 0.0;
+            engine->getIgnitionModule()->m_enabled = !fuelCut;
             renderer.ramp(previousRpm, rpm, speedControl, std::min(0.5, opt.settle));
             renderer.run(std::max(0.0, opt.settle - 0.5), nullptr, nullptr, nullptr);
             previousRpm = rpm;
