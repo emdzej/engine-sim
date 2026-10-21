@@ -214,7 +214,23 @@ public:
         synth.readAudioOutput((int)discard.size(), discard.data());
 
         m_engine->getIgnitionModule()->m_enabled = true;
+        crank();
         return true;
+    }
+
+    // Spins the engine up with the starter so it turns in its normal direction.
+    // Starting from rest on the dyno would pick the direction arbitrarily (the
+    // dyno follows the sign of the current crank velocity) and can run the
+    // engine backwards, with valve and ignition timing reversed.
+    void crank() {
+        const double target = 0.8 * units::toRpm(m_engine->getStarterSpeed());
+        m_simulator->m_starterMotor.m_enabled = true;
+        for (int i = 0; i < (int)(3.0 / FrameDt) && m_engine->getRpm() < target; ++i) {
+            run(FrameDt, nullptr, nullptr, nullptr);
+        }
+        m_simulator->m_starterMotor.m_enabled = false;
+        std::fprintf(stderr, "cranked to %.0f rpm (%s)\n",
+            m_engine->getRpm(), m_engine->isSpinningCw() ? "cw" : "ccw");
     }
 
     Engine *engine() const { return m_engine; }
