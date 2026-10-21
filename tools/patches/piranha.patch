@@ -1,0 +1,67 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 92eeaa70..66ec378a 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -45,7 +45,12 @@ bison_target(
+ add_flex_bison_dependency(lexer parser)
+ 
+ include_directories(${CMAKE_CURRENT_BINARY_DIR})
+-include_directories(dependencies/libraries/flex/include)
++if (WIN32)
++    include_directories(dependencies/libraries/flex/include)
++else ()
++    # Use the FlexLexer.h that matches the flex generating the scanner
++    include_directories(${FLEX_INCLUDE_DIRS})
++endif ()
+ include_directories(include)
+ 
+ set(Boost_USE_STATIC_LIBS ON)
+diff --git a/include/memory_management.h b/include/memory_management.h
+index 75500615..bc1a74b1 100644
+--- a/include/memory_management.h
++++ b/include/memory_management.h
+@@ -2,16 +2,17 @@
+ #define PIRANHA_MEMORY_MANAGEMENT_H
+ 
+ #include <assert.h>
++#include <stdint.h>
+ 
+ namespace piranha {
+ 
+-    typedef unsigned __int64 mem_size;
++    typedef uint64_t mem_size;
+ 
+     constexpr mem_size KB = 1000;
+     constexpr mem_size MB = 1000 * KB;
+     constexpr mem_size GB = 1000 * MB;
+ 
+-#define CHECK_ALIGNMENT(pointer, required) assert((((unsigned __int64)((char *)(pointer))) % (required)) == 0)
++#define CHECK_ALIGNMENT(pointer, required) assert((((uintptr_t)((char *)(pointer))) % (required)) == 0)
+ 
+ } /* namespace piranha */
+ 
+diff --git a/src/path.cpp b/src/path.cpp
+index 6e711184..68867fed 100644
+--- a/src/path.cpp
++++ b/src/path.cpp
+@@ -73,7 +73,7 @@ std::string piranha::Path::getStem() const {
+ }
+ 
+ bool piranha::Path::isAbsolute() const {
+-    return m_path->is_complete();
++    return m_path->is_absolute();
+ }
+ 
+ bool piranha::Path::exists() const {
+diff --git a/src/standard_allocator.cpp b/src/standard_allocator.cpp
+index ca8841af..59c63e84 100644
+--- a/src/standard_allocator.cpp
++++ b/src/standard_allocator.cpp
+@@ -1,6 +1,6 @@
+ #include "../include/standard_allocator.h"
+ 
+-#include <malloc.h>
++#include <stdlib.h>
+ 
+ piranha::StandardAllocator *piranha::StandardAllocator::s_global = nullptr;
+ 

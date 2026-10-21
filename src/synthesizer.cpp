@@ -1,10 +1,11 @@
 #include "../include/synthesizer.h"
 
 #include "../include/utilities.h"
-#include "../include/delta.h"
 
 #include <cassert>
+#include <algorithm>
 #include <cmath>
+#include <cstring>
 
 #undef min
 #undef max
@@ -279,6 +280,18 @@ void Synthesizer::setInputSampleRate(double sampleRate) {
 }
 
 int16_t Synthesizer::renderAudio(int inputSample) {
+    int r_int = std::lround(renderAudioRaw(inputSample));
+    if (r_int > INT16_MAX) {
+        r_int = INT16_MAX;
+    }
+    else if (r_int < INT16_MIN) {
+        r_int = INT16_MIN;
+    }
+
+    return static_cast<int16_t>(r_int);
+}
+
+float Synthesizer::renderAudioRaw(int inputSample) {
     const float airNoise = m_audioParameters.airNoise;
     const float dF_F_mix = m_audioParameters.dF_F_mix;
     const float convAmount = m_audioParameters.convolution;
@@ -318,16 +331,7 @@ int16_t Synthesizer::renderAudio(int inputSample) {
     signal = m_antialiasing.fast_f(signal);
 
     m_levelingFilter.p_target = m_audioParameters.levelerTarget;
-    const float v_leveled = m_levelingFilter.f(signal) * m_audioParameters.volume;
-    int r_int = std::lround(v_leveled);
-    if (r_int > INT16_MAX) {
-        r_int = INT16_MAX;
-    }
-    else if (r_int < INT16_MIN) {
-        r_int = INT16_MIN;
-    }
-
-    return static_cast<int16_t>(r_int);
+    return m_levelingFilter.f(signal) * m_audioParameters.volume;
 }
 
 double Synthesizer::getLevelerGain() {

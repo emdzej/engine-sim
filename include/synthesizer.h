@@ -88,6 +88,9 @@ class Synthesizer {
 
         int16_t renderAudio(int inputOffset);
 
+        // Unclamped output sample (after leveling and volume), in int16 units
+        float renderAudioRaw(int inputOffset);
+
         double getLevelerGain();
         AudioParameters getAudioParameters();
         void setAudioParameters(const AudioParameters &params);

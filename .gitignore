@@ -10,3 +10,7 @@ compile_commands.json
 
 # Blender temporary files
 *.blend1
+
+# Headless build and renderer logs
+build-headless/
+error_log.log

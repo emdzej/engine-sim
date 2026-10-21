@@ -55,7 +55,20 @@ The RPM hold feature will hold the engine at a specific RPM and also measure the
 I wrote this to demo in a [YouTube video](https://youtu.be/RKT-sKtR970), not as a real product. If you would like it to become a usable product please reach out to me or join my Discord (link can be found in the description of the aforementioned YouTube video). I use this codebase for my own purposes and so it might change frequently and without warning.
 
 ## How do I build it? (Ignore this section if you're not a developer!)
-**Note: this project currently only builds on Windows!**
+**Note: the interactive app only builds on Windows!** On macOS/Linux you can build the headless renderer instead (see below).
+
+### Headless renderer (macOS/Linux)
+`engine-sim-cli` builds the simulation core and script compiler without delta-studio, holds an engine at fixed speeds on the dyno and writes steady on-load/off-load takes as mono 16-bit 44.1 kHz WAV files, all with one gain per engine.
+
+```
+brew install cmake boost bison flex
+tools/build-headless.sh
+build-headless/engine-sim-cli --script tools/engine-sounds/r4.mr --probe       # idle, redline, suggested rpms
+build-headless/engine-sim-cli --script tools/engine-sounds/r4.mr --kind r4 --out out/r4 --rpms 750,1400,2600,4800
+```
+
+Run it from the repository root (the script compiler looks for `es/` relative to the working directory). Each take is written as `<kind>_<rpm>_<on|off>.wav`, plus `<kind>_takes.csv` with the measured rpm and dyno torque. Portability fixes for the `piranha` and `simple-2d-constraint-solver` submodules live in `tools/patches/` and are applied by the build script.
+
 
 ### Step 1 - Clone the repository
 ```git clone --recurse-submodules https://github.com/ange-yaghi/engine-sim```

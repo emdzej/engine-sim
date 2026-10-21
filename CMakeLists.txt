@@ -3,6 +3,12 @@ cmake_minimum_required(VERSION 3.10)
 option(DTV "Enable video output" OFF)
 option(PIRANHA_ENABLED "Enable scripting input" ON)
 option(DISCORD_ENABLED "Enable Discord Rich Presence" ON)
+option(ENGINE_SIM_HEADLESS "Build only the simulation core and the offline WAV renderer (no delta-studio, works on macOS/Linux)" OFF)
+
+if (ENGINE_SIM_HEADLESS)
+    set(DISCORD_ENABLED OFF)
+    set(DTV OFF)
+endif (ENGINE_SIM_HEADLESS)
 
 if (DTV)
     add_compile_definitions(ATG_ENGINE_SIM_VIDEO_CAPTURE)
@@ -23,6 +29,10 @@ set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "cmake")
 project(engine-sim)
 
 set(CMAKE_CXX_STANDARD 17)
+
+if (NOT MSVC)
+    add_compile_definitions("__forceinline=inline __attribute__((always_inline))")
+endif (NOT MSVC)
 
 # ========================================================
 # GTEST
@@ -136,8 +146,12 @@ add_library(engine-sim STATIC
 
 target_link_libraries(engine-sim
     simple-2d-constraint-solver
-    csv-io
-    delta-basic)
+    csv-io)
+
+if (NOT ENGINE_SIM_HEADLESS)
+    target_link_libraries(engine-sim
+        delta-basic)
+endif (NOT ENGINE_SIM_HEADLESS)
 
 target_include_directories(engine-sim
     PUBLIC dependencies/submodules)
@@ -203,6 +217,14 @@ if (DISCORD_ENABLED)
     )
 endif (DISCORD_ENABLED)
 
+if (ENGINE_SIM_HEADLESS)
+    add_executable(engine-sim-cli
+        tools/engine_sim_cli.cpp)
+
+    target_link_libraries(engine-sim-cli
+        engine-sim
+        engine-sim-script-interpreter)
+else ()
 add_executable(engine-sim-app WIN32
     # Source files
     src/main.cpp
@@ -298,6 +320,7 @@ endif (DISCORD_ENABLED)
 
 target_include_directories(engine-sim-app
     PUBLIC dependencies/submodules)
+endif (ENGINE_SIM_HEADLESS)
 
 add_subdirectory(dependencies)
 
