@@ -55,7 +55,7 @@ The RPM hold feature will hold the engine at a specific RPM and also measure the
 I wrote this to demo in a [YouTube video](https://youtu.be/RKT-sKtR970), not as a real product. If you would like it to become a usable product please reach out to me or join my Discord (link can be found in the description of the aforementioned YouTube video). I use this codebase for my own purposes and so it might change frequently and without warning.
 
 ## How do I build it? (Ignore this section if you're not a developer!)
-**Note: the interactive app only builds on Windows!** On macOS/Linux you can build the headless renderer instead (see below).
+**Note: the interactive app only builds on Windows!** On macOS/Linux you can build the headless renderer or the WebAssembly guest instead (see below). Coding agents: see [AGENTS.md](AGENTS.md).
 
 ### Headless renderer (macOS/Linux)
 `engine-sim-cli` builds the simulation core and script compiler without delta-studio, holds an engine at fixed speeds on the dyno and writes steady on-load/off-load takes as mono 16-bit 44.1 kHz WAV files, all with one gain per engine.
@@ -67,7 +67,7 @@ build-headless/engine-sim-cli --script tools/engine-sounds/r4.mr --probe       #
 build-headless/engine-sim-cli --script tools/engine-sounds/r4.mr --kind r4 --out out/r4 --rpms 750,1400,2600,4800
 ```
 
-Run it from the repository root (the script compiler looks for `es/` relative to the working directory). Each take is written as `<kind>_<rpm>_<on|off>.wav`, plus `<kind>_takes.csv` with the measured rpm and dyno torque. Portability fixes for the `piranha` and `simple-2d-constraint-solver` submodules live in `tools/patches/` and are applied by the build script.
+Run it from the repository root (the script compiler looks for `es/` relative to the working directory). Each take is written as `<kind>_<rpm>_<on|off>.wav`, plus `<kind>_takes.csv` with the measured rpm and dyno torque. `--fuel-cut` renders off-load takes with the throttle open and the ignition off (a coasting diesel); `--dry` skips the exhaust impulse response. The configs and per-engine settings used for *Nowhere in Particular* are in [tools/engine-sounds](tools/engine-sounds/README.md) (`render.sh <kind> <out>`, `qa.py` to check takes). Portability fixes for the `piranha` and `simple-2d-constraint-solver` submodules live in `tools/patches/` and are applied by the build script.
 
 ### WebAssembly ([gasm](https://gasm.emdzej.pl) guest)
 `tools/gasm/` builds `engine-sim.wasm`, the simulator and synthesizer as a gasm game (no UI yet: an rpm/throttle bar). It needs a gasm checkout (for the C SDK and its wasi-sdk) next to this repository, or its path as the first argument.
@@ -78,16 +78,17 @@ gasm-run build-gasm/engine-sim.wasm --asset-dir es=es --asset-dir assets=assets 
     --param script=tools/engine-sounds/r4.mr          # arrow up = throttle, X (pad A) = starter
 ```
 
-`--param mode=bench --param rpm=4800` holds the engine on the dyno at wide-open throttle, for timing runs (`--headless 600 --no-hash`); `--param capture=<frames>` stores the first frames of audio as `capture.wav` in gasm storage. The wasm build uses `ATG_ENGINE_SIM_FAST_CONVOLUTION` (a vectorizable impulse-response sum) and Piranha's `PIRANHA_NO_BOOST` mode (scripts read from gasm assets).
+`--param mode=bench --param rpm=4800` holds the engine on the dyno at wide-open throttle, for timing runs (`--headless 600 --no-hash`); `--param capture=<frames>` stores the first frames of audio as `capture.wav` in gasm storage. The wasm build uses `ATG_ENGINE_SIM_FAST_CONVOLUTION` (a vectorizable impulse-response sum) and Piranha's `PIRANHA_NO_BOOST` mode (scripts read from gasm assets). Measured speed and the plan for porting the UI are in [AGENTS.md](AGENTS.md#gasm-port).
 
+### Windows (interactive app)
 
-### Step 1 - Clone the repository
+#### Step 1 - Clone the repository
 ```git clone --recurse-submodules https://github.com/ange-yaghi/engine-sim```
 
-### Step 2 - Install CMake
+#### Step 2 - Install CMake
 Install the latest version of CMake [here](https://cmake.org/) if it's not already installed.
 
-### Step 3 - Install Dependencies
+#### Step 3 - Install Dependencies
 You will need to install the following dependencies and CMake will need to be able to locate them (ie. they need to be listed on your PATH):
 
     1. SDL2
@@ -95,7 +96,7 @@ You will need to install the following dependencies and CMake will need to be ab
     3. Boost (make sure to build the optional dependencies)
     4. Flex and Bison
 
-### Step 4 - Build and Run
+#### Step 4 - Build and Run
 From the root directory of the project, run the following commands:
 
 ```
